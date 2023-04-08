@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use rustfft::{
     num_complex::{Complex, ComplexFloat},
     FftPlanner,
@@ -9,7 +11,7 @@ use sdl2::{
     pixels::Color,
 };
 
-const WIDTH: u32 = 1280;
+const WIDTH: u32 = 960;
 const HEIGHT: u32 = 420;
 
 const FREQUENCY: i32 = 48000;
@@ -41,7 +43,7 @@ fn fft(signal: &[f64], sampling_freq: usize) -> Vec<(f64, f64)> {
         let val = 1.0 / (n * d);
         let cn = (n as usize / 2) + 1;
         let results = 0..cn;
-        results.map(|x| (x as f64) * val).collect::<Vec<_>>()
+        results.map(move |x| (x as f64) * val)
     };
 
     let fft_psd_db = fft_data
@@ -52,7 +54,7 @@ fn fft(signal: &[f64], sampling_freq: usize) -> Vec<(f64, f64)> {
         .map(|psd| 10.0 * psd.log10())
         .collect::<Vec<_>>();
 
-    fft_freq.into_iter().zip(fft_psd_db).collect()
+    fft_freq.zip(fft_psd_db).collect()
 }
 
 #[test]
@@ -84,14 +86,27 @@ fn main() {
     sdl2::mixer::open_audio(FREQUENCY, FORMAT, CHANNELS, CHUNK_SIZE).unwrap();
     let _mixer_context = sdl2::mixer::init(InitFlag::MP3).unwrap();
 
-    let sdl_source = Music::from_file("./d.mp3").unwrap();
+    let sdl_source = Music::from_file("./out.mp3").unwrap();
 
-    let _wav = hound::WavReader::open("./d.wav")
-        .unwrap()
+    let wav = hound::WavReader::open("./out.wav").unwrap();
+    let wavspec = wav.spec();
+    assert_eq!(wavspec.channels, 2);
+
+    let (left_samples, _right_samples, _) = wav
         .into_samples::<f32>()
-        .collect::<Vec<_>>();
-
-    sdl_source.play(0).unwrap();
+        .try_fold(
+            (vec![], vec![], true),
+            |(mut left, mut right, is_left), v| {
+                let v = v? as f64;
+                if is_left {
+                    left.push(v);
+                } else {
+                    right.push(v);
+                }
+                Result::<_, hound::Error>::Ok((left, right, !is_left))
+            },
+        )
+        .unwrap();
 
     let window = video
         .window("spectrum", WIDTH, HEIGHT)
@@ -102,11 +117,12 @@ fn main() {
 
     let mut canvas = window.into_canvas().build().unwrap();
 
-    canvas.set_draw_color(Color::BLACK);
-    canvas.clear();
-    canvas.present();
-
     let mut event_pump = sdl.event_pump().unwrap();
+
+    sdl_source.play(0).unwrap();
+    let began_at = Instant::now();
+
+    std::thread::sleep(Duration::from_secs_f64(0.5));
 
     'render: loop {
         for event in event_pump.poll_iter() {
@@ -119,5 +135,55 @@ fn main() {
                 _ => {}
             }
         }
+
+        canvas.set_draw_color(Color::BLACK);
+        canvas.clear();
+
+        const SHOWN_FREQ_MAX: usize = 5_000;
+        const FREQ_GUIDELINE_DISTANCE: usize = 100;
+        const SAMPLING_WINDOW_SEC: f64 = 5.0 / 60.0;
+
+        let bps = wavspec.sample_rate as f64;
+        let rel_now = began_at.elapsed().as_secs_f64();
+
+        let half_window = SAMPLING_WINDOW_SEC / 2.0;
+        let wave = &left_samples[(bps * (rel_now - half_window).max(0.0)) as usize
+            ..(bps * (rel_now + half_window)) as usize];
+
+        let fft = fft(wave, wavspec.sample_rate as usize);
+        let pos = fft
+            .iter()
+            .position(|x| x.0 > SHOWN_FREQ_MAX as f64)
+            .unwrap();
+
+        let mut prev_freq = fft[0].0;
+
+        for (i, fft_index) in (0..pos).enumerate() {
+            let (freq, volume) = fft[fft_index];
+
+            if (freq - prev_freq) > FREQ_GUIDELINE_DISTANCE as f64 {
+                prev_freq = freq;
+                canvas.set_draw_color(Color::RGB(0, 143, 0));
+                canvas.draw_line((i as i32, 92), (i as i32, 100)).unwrap();
+            }
+
+            const SHOWN_VOLUME_MIN: i32 = -50;
+            const SHOWN_VOLUME_MAX: i32 = 100;
+            const SHOWN_VOLUME_RANGE: u32 = SHOWN_VOLUME_MIN.abs_diff(SHOWN_VOLUME_MAX);
+
+            let rel_volume = (volume.clamp(SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
+                + SHOWN_VOLUME_MIN.abs() as f64;
+            let pos = rel_volume / SHOWN_VOLUME_RANGE as f64;
+            let pos_pixel = (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0);
+
+            canvas.set_draw_color(Color::WHITE);
+            canvas
+                .draw_point((i as i32, HEIGHT as i32 - pos_pixel as i32))
+                .unwrap();
+        }
+
+        canvas.present();
+
+        std::thread::sleep(Duration::from_secs_f64(1.0 / 60.0));
     }
 }
