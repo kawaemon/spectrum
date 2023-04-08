@@ -1,5 +1,3 @@
-use std::{f64::consts::PI, fs::File, io::BufReader};
-
 use rustfft::{
     num_complex::{Complex, ComplexFloat},
     FftPlanner,
@@ -58,7 +56,9 @@ fn fft(signal: &[f64], sampling_freq: usize) -> Vec<(f64, f64)> {
 }
 
 #[test]
-fn test_foo() {
+fn test_fft() {
+    use std::f64::consts::PI;
+
     let signal = (0..100)
         .map(|tick| {
             let sec = tick as f64 / 10.0;
@@ -68,7 +68,7 @@ fn test_foo() {
 
     for (i, (f, v)) in fft(&signal, 10).into_iter().enumerate() {
         if i == 10 {
-            assert!((f - 10.0).abs() < 0.0000001);
+            assert!((f - 1.0).abs() < 0.0000001);
             assert!(v > 0.0);
         } else {
             assert!(v < 0.0);
