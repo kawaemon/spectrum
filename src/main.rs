@@ -49,9 +49,10 @@ fn fft(signal: &[f64], sampling_freq: usize) -> Vec<(f64, f64)> {
     let fft_psd_db = fft_data
         .into_iter()
         .map(|data| data.abs())
-        .map(|as_| as_.powf(2.0))
-        .map(|ps| ps / delta_f)
-        .map(|psd| 10.0 * psd.log10())
+        // .map(|as_| as_.powf(2.0))
+        // .map(|ps| ps / delta_f)
+        // .map(|psd| 10.0 * psd.log10())
+        .map(|x| x / 10.0)
         .collect::<Vec<_>>();
 
     fft_freq.zip(fft_psd_db).collect()
@@ -76,6 +77,15 @@ fn test_fft() {
             assert!(v < 0.0);
         }
     }
+}
+
+// https://python.atelierkobato.com/gaussian
+// x: 0.0..1.0
+fn gauss(x: f64) -> f64 {
+    let a = 1.0;
+    let mu = 0.0;
+    let sigma = 0.25;
+    a * (-((x * 2.0 - 1.0) - mu).powf(2.0) / (2.0 * sigma.powf(2.0))).exp()
 }
 
 fn main() {
@@ -141,7 +151,7 @@ fn main() {
 
         const SHOWN_FREQ_MAX: usize = 5_000;
         const FREQ_GUIDELINE_DISTANCE: usize = 100;
-        const SAMPLING_WINDOW_SEC: f64 = 5.0 / 60.0;
+        const SAMPLING_WINDOW_SEC: f64 = 10.0 / 60.0;
 
         let bps = wavspec.sample_rate as f64;
         let rel_now = began_at.elapsed().as_secs_f64();
@@ -149,16 +159,23 @@ fn main() {
         let half_window = SAMPLING_WINDOW_SEC / 2.0;
         let wave = &left_samples[(bps * (rel_now - half_window).max(0.0)) as usize
             ..(bps * (rel_now + half_window)) as usize];
+        let wave_len = wave.len();
+        let wave = wave
+            .iter()
+            .enumerate()
+            .map(|(i, &x)| x * gauss(i as f64 / wave_len as f64))
+            .collect::<Vec<_>>();
 
-        let fft = fft(wave, wavspec.sample_rate as usize);
+        let fft = fft(&wave, wavspec.sample_rate as usize);
         let pos = fft
             .iter()
             .position(|x| x.0 > SHOWN_FREQ_MAX as f64)
             .unwrap();
 
         let mut prev_freq = fft[0].0;
+        let mut prev_vol = fft[0].1;
 
-        for (i, fft_index) in (0..pos).enumerate() {
+        for (i, fft_index) in (0..pos).enumerate().skip(1) {
             let (freq, volume) = fft[fft_index];
 
             if (freq - prev_freq) > FREQ_GUIDELINE_DISTANCE as f64 {
@@ -167,19 +184,25 @@ fn main() {
                 canvas.draw_line((i as i32, 92), (i as i32, 100)).unwrap();
             }
 
-            const SHOWN_VOLUME_MIN: i32 = -50;
+            const SHOWN_VOLUME_MIN: i32 = 0;
             const SHOWN_VOLUME_MAX: i32 = 100;
             const SHOWN_VOLUME_RANGE: u32 = SHOWN_VOLUME_MIN.abs_diff(SHOWN_VOLUME_MAX);
 
-            let rel_volume = (volume.clamp(SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
-                + SHOWN_VOLUME_MIN.abs() as f64;
-            let pos = rel_volume / SHOWN_VOLUME_RANGE as f64;
-            let pos_pixel = (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0);
+            let y = |volume: f64| {
+                let rel_volume = (volume.clamp(SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
+                    + SHOWN_VOLUME_MIN.abs() as f64;
+                let pos = rel_volume / SHOWN_VOLUME_RANGE as f64;
+                (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0)
+            };
 
             canvas.set_draw_color(Color::WHITE);
             canvas
-                .draw_point((i as i32, HEIGHT as i32 - pos_pixel as i32))
+                .draw_line(
+                    ((i - 1) as i32, HEIGHT as i32 - y(prev_vol) as i32),
+                    (i as i32, HEIGHT as i32 - y(volume) as i32),
+                )
                 .unwrap();
+            prev_vol = volume;
         }
 
         canvas.present();
