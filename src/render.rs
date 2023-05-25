@@ -52,10 +52,7 @@ impl Renderer {
         let mut chistory = vec![];
 
         if cfg!(feature = "time_chart") {
-            for (y, h) in self.history.iter().enumerate().rev() {
-                if y == 0 {
-                    continue;
-                }
+            for (y, h) in self.history.iter().enumerate().skip(1).rev() {
                 for &(x, v) in h.iter() {
                     if v < 3.0 {
                         continue;
