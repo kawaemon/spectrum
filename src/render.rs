@@ -106,11 +106,11 @@ impl Renderer {
                     .draw_line(
                         (
                             ((i - 1) * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - envelope_y(window[1].1) as i32,
+                            HEIGHT as i32 - envelope_y(volume) as i32,
                         ),
                         (
                             (i * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - envelope_y(volume) as i32,
+                            HEIGHT as i32 - envelope_y(window[1].1) as i32,
                         ),
                     )
                     .unwrap();
