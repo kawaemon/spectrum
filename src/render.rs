@@ -8,10 +8,6 @@ use crate::{fft::fft, tone::Tone, HEIGHT, WIDTH};
 const PIXELS_PER_FREQ: usize = 2;
 const SCROLL_SPEED: usize = 10;
 
-const SHOWN_VOLUME_MIN: i32 = -30;
-const SHOWN_VOLUME_MAX: i32 = 150;
-const SHOWN_VOLUME_RANGE: u32 = SHOWN_VOLUME_MIN.abs_diff(SHOWN_VOLUME_MAX);
-
 pub struct Renderer {
     history: VecDeque<Vec<(usize, f64)>>,
 }
@@ -64,10 +60,7 @@ impl Renderer {
                     if v < 3.0 {
                         continue;
                     }
-                    let rel_volume =
-                        ((f64::clamp(v, SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
-                            - SHOWN_VOLUME_MIN as f64)
-                            / SHOWN_VOLUME_RANGE as f64;
+                    let rel_volume = normalize_volume(v);
                     let c: Rgb<u8, LinearRgb> =
                         Hsv::<u8, LinearRgb>::new(Deg(255 - (232.0 * rel_volume) as u8), 127, 255)
                             .to_rgb();
@@ -92,9 +85,7 @@ impl Renderer {
             }
 
             let y = |volume: f64| {
-                let rel_volume = (volume.clamp(SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
-                    + SHOWN_VOLUME_MIN.abs() as f64;
-                let pos = rel_volume / SHOWN_VOLUME_RANGE as f64;
+                let pos = normalize_volume(volume);
                 (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0)
             };
 
@@ -125,6 +116,16 @@ impl Renderer {
 
         canvas.present();
     }
+}
+
+fn normalize_volume(volume: f64) -> f64 {
+    const SHOWN_VOLUME_MIN: i32 = -30;
+    const SHOWN_VOLUME_MAX: i32 = 150;
+    const SHOWN_VOLUME_RANGE: u32 = SHOWN_VOLUME_MIN.abs_diff(SHOWN_VOLUME_MAX);
+
+    ((f64::clamp(volume, SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
+        - SHOWN_VOLUME_MIN as f64)
+        / SHOWN_VOLUME_RANGE as f64
 }
 
 // https://python.atelierkobato.com/gaussian
