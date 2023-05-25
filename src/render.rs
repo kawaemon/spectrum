@@ -47,9 +47,6 @@ impl Renderer {
 
         let fft = fft(&wave, sample_rate as usize);
 
-        let mut freq_guideline = enum_iterator::first::<Tone>();
-        let mut chistory = vec![];
-
         if cfg!(feature = "time_chart") {
             for (y, h) in self.history.iter().enumerate().skip(1).rev() {
                 for &(x, v) in h.iter() {
@@ -74,11 +71,13 @@ impl Renderer {
             }
         }
 
+        let mut current_history = vec![];
+        let mut freq_guideline = enum_iterator::first::<Tone>();
         for (i, window) in fft.windows(2).enumerate().skip(1) {
             let (freq, volume) = window[0];
             while freq_guideline.map_or(false, |fg| fg.freq() < freq) {
                 freq_guideline = enum_iterator::next(&freq_guideline.unwrap());
-                chistory.push((i * PIXELS_PER_FREQ, volume));
+                current_history.push((i * PIXELS_PER_FREQ, volume));
             }
 
             if cfg!(feature = "spectrum") {
@@ -105,9 +104,8 @@ impl Renderer {
                 break;
             }
         }
-
         self.history.pop_front();
-        self.history.push_back(chistory);
+        self.history.push_back(current_history);
 
         canvas.present();
     }
