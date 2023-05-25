@@ -5,6 +5,12 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = ["time_chart", "spectrum"]
+time_chart = []
+spectrum = []
+db = []
+
 [dependencies]
 color-rs = "0.7.1"
 enum-iterator = "1.4.1"
