@@ -12,15 +12,17 @@ use rustfft::{
     FftPlanner,
 };
 use sdl2::{
-    audio::{AudioCallback, AudioFormat, AudioSpecDesired},
+    audio::{AudioFormat, AudioSpecDesired},
     event::Event,
     keyboard::Keycode,
     mixer::{InitFlag, AUDIO_F32LSB},
     pixels::Color,
 };
 
+use self::player::Player;
 use self::tone::Tone;
 
+mod player;
 mod tone;
 
 const WIDTH: u32 = 800;
@@ -31,7 +33,6 @@ const FREQUENCY: i32 = 48000;
 const FORMAT: u16 = AUDIO_F32LSB;
 const CHANNELS: i32 = 2;
 const CHUNK_SIZE: i32 = 1024;
-const VOLUME: f32 = 0.5;
 
 const PIXELS_PER_FREQ: usize = 2;
 const SCROLL_SPEED: usize = 10;
@@ -168,25 +169,7 @@ fn main() {
         .open_playback(None, &desired_spec, |spec| {
             assert_eq!(spec.format, AudioFormat::F32LSB);
             assert_eq!(spec.channels, 1);
-            struct Player {
-                pos: usize,
-                data: Vec<f64>,
-            }
-            impl AudioCallback for Player {
-                type Channel = f32;
-                fn callback(&mut self, x: &mut [f32]) {
-                    assert_eq!(x.len(), 4096);
-                    let wave = &self.data[self.pos..self.pos + x.len()];
-                    for (i, x) in x.iter_mut().enumerate() {
-                        *x = wave[i] as f32 * VOLUME;
-                    }
-                    self.pos += x.len();
-                }
-            }
-            Player {
-                pos: 0,
-                data: played,
-            }
+            Player::new(played)
         })
         .unwrap();
 
