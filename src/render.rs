@@ -48,7 +48,6 @@ impl Renderer {
         let fft = fft(&wave, sample_rate as usize);
 
         let mut freq_guideline = enum_iterator::first::<Tone>();
-        let mut prev_vol = fft[0].1;
         let mut chistory = vec![];
 
         if cfg!(feature = "time_chart") {
@@ -75,24 +74,24 @@ impl Renderer {
             }
         }
 
-        for (i, &(freq, volume)) in fft.iter().enumerate().skip(1) {
+        for (i, window) in fft.windows(2).enumerate().skip(1) {
+            let (freq, volume) = window[0];
             while freq_guideline.map_or(false, |fg| fg.freq() < freq) {
                 freq_guideline = enum_iterator::next(&freq_guideline.unwrap());
                 chistory.push((i * PIXELS_PER_FREQ, volume));
             }
 
-            let y = |volume: f64| {
-                let pos = normalize_volume(volume);
-                (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0)
-            };
-
             if cfg!(feature = "spectrum") {
+                let y = |volume: f64| {
+                    let pos = normalize_volume(volume);
+                    (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0)
+                };
                 canvas.set_draw_color(Color::WHITE);
                 canvas
                     .draw_line(
                         (
                             ((i - 1) * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - y(prev_vol) as i32,
+                            HEIGHT as i32 - y(window[1].1) as i32,
                         ),
                         (
                             (i * PIXELS_PER_FREQ) as i32,
@@ -100,7 +99,6 @@ impl Renderer {
                         ),
                     )
                     .unwrap();
-                prev_vol = volume;
             }
 
             if i * PIXELS_PER_FREQ > WIDTH as usize {
