@@ -82,20 +82,20 @@ impl Renderer {
             }
 
             if cfg!(feature = "spectrum") {
-                let y = |volume: f64| {
+                fn envelope_y(volume: f64) -> f64 {
                     let pos = normalize_volume(volume);
                     (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0)
-                };
+                }
                 canvas.set_draw_color(Color::WHITE);
                 canvas
                     .draw_line(
                         (
                             ((i - 1) * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - y(window[1].1) as i32,
+                            HEIGHT as i32 - envelope_y(window[1].1) as i32,
                         ),
                         (
                             (i * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - y(volume) as i32,
+                            HEIGHT as i32 - envelope_y(volume) as i32,
                         ),
                     )
                     .unwrap();
