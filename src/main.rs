@@ -2,6 +2,7 @@
 
 use std::{
     collections::VecDeque,
+    ops::ControlFlow,
     time::{Duration, Instant},
 };
 
@@ -196,115 +197,136 @@ fn main() {
         .map(|_| Vec::<(usize, f64)>::new())
         .collect::<VecDeque<_>>();
 
-    'render: loop {
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Q | Keycode::Escape),
-                    ..
-                } => break 'render,
-                _ => {}
-            }
+    loop {
+        if let ControlFlow::Break(_) = render(
+            &mut event_pump,
+            &mut canvas,
+            wavspec,
+            began_at,
+            &samples,
+            &mut history,
+        ) {
+            break;
         }
+        std::thread::sleep(Duration::from_secs_f64(1.0 / 60.0));
+    }
+}
 
-        canvas.set_draw_color(Color::BLACK);
-        canvas.clear();
+fn render(
+    event_pump: &mut sdl2::EventPump,
+    canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+    wavspec: hound::WavSpec,
+    began_at: Instant,
+    samples: &Vec<f64>,
+    history: &mut VecDeque<Vec<(usize, f64)>>,
+) -> ControlFlow<()> {
+    for event in event_pump.poll_iter() {
+        match event {
+            Event::Quit { .. }
+            | Event::KeyDown {
+                keycode: Some(Keycode::Q | Keycode::Escape),
+                ..
+            } => return ControlFlow::Break(()),
+            _ => {}
+        }
+    }
 
-        let bps = wavspec.sample_rate as f64;
-        let rel_now = began_at.elapsed().as_secs_f64();
+    canvas.set_draw_color(Color::BLACK);
+    canvas.clear();
 
-        let half_window = SAMPLING_WINDOW_SEC / 2.0;
-        let wave = &samples[(bps * (rel_now - half_window).max(0.0)) as usize
-            ..(bps * (rel_now + half_window)) as usize];
-        let wave_len = wave.len();
-        let wave = wave
-            .iter()
-            .enumerate()
-            .map(|(i, &x)| x * gauss(i as f64 / wave_len as f64))
-            .collect::<Vec<_>>();
+    let bps = wavspec.sample_rate as f64;
+    let rel_now = began_at.elapsed().as_secs_f64();
 
-        let fft = fft(&wave, wavspec.sample_rate as usize);
+    let half_window = SAMPLING_WINDOW_SEC / 2.0;
+    let wave = &samples[(bps * (rel_now - half_window).max(0.0)) as usize
+        ..(bps * (rel_now + half_window)) as usize];
+    let wave_len = wave.len();
+    let wave = wave
+        .iter()
+        .enumerate()
+        .map(|(i, &x)| x * gauss(i as f64 / wave_len as f64))
+        .collect::<Vec<_>>();
 
-        let mut freq_guideline = enum_iterator::first::<Tone>();
-        let mut prev_vol = fft[0].1;
-        let mut chistory = vec![];
+    let fft = fft(&wave, wavspec.sample_rate as usize);
 
-        if TIMECHART {
-            for (y, h) in history.iter().enumerate().rev() {
-                if y == 0 {
+    let mut freq_guideline = enum_iterator::first::<Tone>();
+    let mut prev_vol = fft[0].1;
+    let mut chistory = vec![];
+
+    if TIMECHART {
+        for (y, h) in history.iter().enumerate().rev() {
+            if y == 0 {
+                continue;
+            }
+            for &(x, v) in h.iter() {
+                if v < 3.0 {
                     continue;
                 }
-                for &(x, v) in h.iter() {
-                    if v < 3.0 {
-                        continue;
-                    }
-                    let rel_volume =
-                        ((f64::clamp(v, SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
-                            + SHOWN_VOLUME_MIN.abs() as f64)
-                            / SHOWN_VOLUME_RANGE as f64;
-                    let c: Rgb<u8, LinearRgb> = Hsv::<u8, LinearRgb>::new(
-                        Deg(232),
-                        ((1.0 - rel_volume * 1.5) * 255.0).min(254.0) as u8,
-                        255,
-                    )
-                    .to_rgb();
-                    canvas.set_draw_color(Color::RGB(c.r, c.g, c.b));
-                    canvas
-                        .draw_line(
-                            (x as i32, ((y - 1) * SCROLL_SPEED) as i32),
-                            (x as i32, (y * SCROLL_SPEED) as i32),
-                        )
-                        .unwrap();
-                }
-                if y * SCROLL_SPEED > HEIGHT as usize {
-                    break;
-                }
-            }
-        }
-
-        for (i, &(freq, volume)) in fft.iter().enumerate().skip(1) {
-            while let Some(fg) = freq_guideline && freq > fg.freq() {
-                freq_guideline = enum_iterator::next(&fg);
-                chistory.push((i * PIXELS_PER_FREQ, volume));
-            }
-
-            let y = |volume: f64| {
-                let rel_volume = (volume.clamp(SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
-                    + SHOWN_VOLUME_MIN.abs() as f64;
-                let pos = rel_volume / SHOWN_VOLUME_RANGE as f64;
-                (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0)
-            };
-
-            if SPECTRUM {
-                canvas.set_draw_color(Color::WHITE);
+                let rel_volume =
+                    ((f64::clamp(v, SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
+                        + SHOWN_VOLUME_MIN.abs() as f64)
+                        / SHOWN_VOLUME_RANGE as f64;
+                let c: Rgb<u8, LinearRgb> = Hsv::<u8, LinearRgb>::new(
+                    Deg(232),
+                    ((1.0 - rel_volume * 1.5) * 255.0).min(254.0) as u8,
+                    255,
+                )
+                .to_rgb();
+                canvas.set_draw_color(Color::RGB(c.r, c.g, c.b));
                 canvas
                     .draw_line(
-                        (
-                            ((i - 1) * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - y(prev_vol) as i32,
-                        ),
-                        (
-                            (i * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - y(volume) as i32,
-                        ),
+                        (x as i32, ((y - 1) * SCROLL_SPEED) as i32),
+                        (x as i32, (y * SCROLL_SPEED) as i32),
                     )
                     .unwrap();
-                prev_vol = volume;
             }
-
-            if i * PIXELS_PER_FREQ > WIDTH as usize {
+            if y * SCROLL_SPEED > HEIGHT as usize {
                 break;
             }
         }
-
-        history.pop_front();
-        history.push_back(chistory);
-
-        canvas.present();
-
-        std::thread::sleep(Duration::from_secs_f64(1.0 / 60.0));
     }
+
+    for (i, &(freq, volume)) in fft.iter().enumerate().skip(1) {
+        while let Some(fg) = freq_guideline && freq > fg.freq() {
+            freq_guideline = enum_iterator::next(&fg);
+            chistory.push((i * PIXELS_PER_FREQ, volume));
+        }
+
+        let y = |volume: f64| {
+            let rel_volume = (volume.clamp(SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
+                + SHOWN_VOLUME_MIN.abs() as f64;
+            let pos = rel_volume / SHOWN_VOLUME_RANGE as f64;
+            (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0)
+        };
+
+        if SPECTRUM {
+            canvas.set_draw_color(Color::WHITE);
+            canvas
+                .draw_line(
+                    (
+                        ((i - 1) * PIXELS_PER_FREQ) as i32,
+                        HEIGHT as i32 - y(prev_vol) as i32,
+                    ),
+                    (
+                        (i * PIXELS_PER_FREQ) as i32,
+                        HEIGHT as i32 - y(volume) as i32,
+                    ),
+                )
+                .unwrap();
+            prev_vol = volume;
+        }
+
+        if i * PIXELS_PER_FREQ > WIDTH as usize {
+            break;
+        }
+    }
+
+    history.pop_front();
+    history.push_back(chistory);
+
+    canvas.present();
+
+    ControlFlow::Continue(())
 }
 
 #[derive(Debug, Clone, Copy, Sequence)]
