@@ -7,7 +7,7 @@ use sdl2::{
     mixer::{InitFlag, AUDIO_F32LSB},
 };
 
-use crate::render::Renderer;
+use crate::render::{RenderProps, Renderer};
 
 use self::player::Player;
 
@@ -82,6 +82,7 @@ fn main() {
     std::thread::sleep(Duration::from_secs_f64(0.5));
 
     let mut renderer = Renderer::new();
+    let mut props = RenderProps::default();
 
     'main: loop {
         for event in event_pump.poll_iter() {
@@ -91,11 +92,23 @@ fn main() {
                     keycode: Some(Keycode::Q | Keycode::Escape),
                     ..
                 } => break 'main,
+                Event::KeyDown {
+                    keycode: Some(Keycode::S),
+                    ..
+                } => {
+                    props.show_spectrum = !props.show_spectrum;
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::T),
+                    ..
+                } => {
+                    props.show_time_chart = !props.show_time_chart;
+                }
                 _ => {}
             }
         }
 
-        renderer.render(&mut canvas, wavspec.sample_rate, began_at, &samples);
+        renderer.render(&mut canvas, &props, wavspec.sample_rate, began_at, &samples);
         std::thread::sleep(Duration::from_secs_f64(1.0 / 60.0));
     }
 }

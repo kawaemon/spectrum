@@ -12,6 +12,21 @@ pub struct Renderer {
     history: VecDeque<Vec<(usize, f64)>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RenderProps {
+    pub show_time_chart: bool,
+    pub show_spectrum: bool,
+}
+
+impl Default for RenderProps {
+    fn default() -> Self {
+        Self {
+            show_time_chart: true,
+            show_spectrum: true,
+        }
+    }
+}
+
 impl Renderer {
     pub fn new() -> Self {
         Self {
@@ -24,6 +39,7 @@ impl Renderer {
     pub fn render(
         &mut self,
         canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+        props: &RenderProps,
         sample_rate: u32,
         began_at: Instant,
         samples: &[f64],
@@ -47,7 +63,7 @@ impl Renderer {
 
         let fft = fft(&wave, sample_rate as usize);
 
-        if cfg!(feature = "time_chart") {
+        if props.show_time_chart {
             for (y, h) in self.history.iter().enumerate().skip(1).rev() {
                 for &(x, v) in h.iter() {
                     if v < 3.0 {
@@ -80,7 +96,7 @@ impl Renderer {
                 current_history.push((i * PIXELS_PER_FREQ, volume));
             }
 
-            if cfg!(feature = "spectrum") {
+            if props.show_spectrum {
                 fn envelope_y(volume: f64) -> f64 {
                     let pos = normalize_volume(volume);
                     (pos * HEIGHT as f64).clamp(1.0, HEIGHT as f64 - 1.0)
