@@ -86,10 +86,10 @@ impl Renderer {
         }
 
         for (i, &(freq, volume)) in fft.iter().enumerate().skip(1) {
-            while let Some(fg) = freq_guideline && freq > fg.freq() {
-            freq_guideline = enum_iterator::next(&fg);
-            chistory.push((i * PIXELS_PER_FREQ, volume));
-        }
+            while freq_guideline.map_or(false, |fg| fg.freq() < freq) {
+                freq_guideline = enum_iterator::next(&freq_guideline.unwrap());
+                chistory.push((i * PIXELS_PER_FREQ, volume));
+            }
 
             let y = |volume: f64| {
                 let rel_volume = (volume.clamp(SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
