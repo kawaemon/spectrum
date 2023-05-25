@@ -2,7 +2,6 @@
 
 use std::{
     collections::VecDeque,
-    ops::ControlFlow,
     time::{Duration, Instant},
 };
 
@@ -183,44 +182,40 @@ fn main() {
         .map(|_| Vec::<(usize, f64)>::new())
         .collect::<VecDeque<_>>();
 
-    loop {
-        if let ControlFlow::Break(_) = render(
-            &mut event_pump,
+    'main: loop {
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Q | Keycode::Escape),
+                    ..
+                } => break 'main,
+                _ => {}
+            }
+        }
+
+        render(
             &mut canvas,
-            wavspec,
+            wavspec.sample_rate,
             began_at,
             &samples,
             &mut history,
-        ) {
-            break;
-        }
+        );
         std::thread::sleep(Duration::from_secs_f64(1.0 / 60.0));
     }
 }
 
 fn render(
-    event_pump: &mut sdl2::EventPump,
     canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
-    wavspec: hound::WavSpec,
+    sample_rate: u32,
     began_at: Instant,
-    samples: &Vec<f64>,
+    samples: &[f64],
     history: &mut VecDeque<Vec<(usize, f64)>>,
-) -> ControlFlow<()> {
-    for event in event_pump.poll_iter() {
-        match event {
-            Event::Quit { .. }
-            | Event::KeyDown {
-                keycode: Some(Keycode::Q | Keycode::Escape),
-                ..
-            } => return ControlFlow::Break(()),
-            _ => {}
-        }
-    }
-
+) {
     canvas.set_draw_color(Color::BLACK);
     canvas.clear();
 
-    let bps = wavspec.sample_rate as f64;
+    let bps = sample_rate as f64;
     let rel_now = began_at.elapsed().as_secs_f64();
 
     let half_window = SAMPLING_WINDOW_SEC / 2.0;
@@ -233,7 +228,7 @@ fn render(
         .map(|(i, &x)| x * gauss(i as f64 / wave_len as f64))
         .collect::<Vec<_>>();
 
-    let fft = fft(&wave, wavspec.sample_rate as usize);
+    let fft = fft(&wave, sample_rate as usize);
 
     let mut freq_guideline = enum_iterator::first::<Tone>();
     let mut prev_vol = fft[0].1;
@@ -308,6 +303,4 @@ fn render(
     history.push_back(chistory);
 
     canvas.present();
-
-    ControlFlow::Continue(())
 }
