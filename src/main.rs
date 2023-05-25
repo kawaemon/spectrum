@@ -15,12 +15,12 @@ use sdl2::{
     audio::{AudioCallback, AudioFormat, AudioSpecDesired},
     event::Event,
     keyboard::Keycode,
-    mixer::{InitFlag, Music, AUDIO_F32LSB},
+    mixer::{InitFlag, AUDIO_F32LSB},
     pixels::Color,
 };
 
-const WIDTH: u32 = 2560;
-const HEIGHT: u32 = 900;
+const WIDTH: u32 = 800;
+const HEIGHT: u32 = 600;
 
 const PLAYBACK_SKIP: usize = (40 * FREQUENCY) as usize;
 const FREQUENCY: i32 = 48000;
@@ -29,15 +29,14 @@ const CHANNELS: i32 = 2;
 const CHUNK_SIZE: i32 = 1024;
 const VOLUME: f32 = 0.5;
 
-const PIXELS_PER_FREQ: usize = 10;
-const SCROLL_SPEED: usize = 30;
-const SHOWN_FREQ_MAX: usize = 5_000;
+const PIXELS_PER_FREQ: usize = 2;
+const SCROLL_SPEED: usize = 10;
 
 const SHOWN_VOLUME_MIN: i32 = -30;
 const SHOWN_VOLUME_MAX: i32 = 150;
 const SHOWN_VOLUME_RANGE: u32 = SHOWN_VOLUME_MIN.abs_diff(SHOWN_VOLUME_MAX);
 
-const TIMECHART: bool = false;
+const TIMECHART: bool = true;
 const SPECTRUM: bool = true;
 
 const SAMPLING_WINDOW_SEC: f64 = 10.0 / 60.0;
@@ -131,21 +130,18 @@ fn main() {
     let wavspec = wav.spec();
     assert_eq!(wavspec.channels, 2);
 
-    let (left_samples, _right_samples, _) = wav
+    let (samples, _) = wav
         .into_samples::<f32>()
         .skip(PLAYBACK_SKIP)
-        .try_fold(
-            (vec![], vec![], true),
-            |(mut left, mut right, is_left), v| {
-                let v = v? as f64;
-                if is_left {
-                    left.push(v);
-                } else {
-                    right.push(v);
-                }
-                Result::<_, hound::Error>::Ok((left, right, !is_left))
-            },
-        )
+        .try_fold((vec![], true), |(mut samples, is_left), v| {
+            let v = v? as f64;
+            if is_left {
+                samples.push(v);
+            } else {
+                *samples.last_mut().unwrap() += v;
+            }
+            Result::<_, hound::Error>::Ok((samples, !is_left))
+        })
         .unwrap();
 
     let window = video
@@ -163,7 +159,7 @@ fn main() {
         samples: None,
     };
 
-    let played = left_samples.clone();
+    let played = samples.clone();
     let device = audio
         .open_playback(None, &desired_spec, |spec| {
             assert_eq!(spec.format, AudioFormat::F32LSB);
@@ -219,7 +215,7 @@ fn main() {
         let rel_now = began_at.elapsed().as_secs_f64();
 
         let half_window = SAMPLING_WINDOW_SEC / 2.0;
-        let wave = &left_samples[(bps * (rel_now - half_window).max(0.0)) as usize
+        let wave = &samples[(bps * (rel_now - half_window).max(0.0)) as usize
             ..(bps * (rel_now + half_window)) as usize];
         let wave_len = wave.len();
         let wave = wave
@@ -229,10 +225,6 @@ fn main() {
             .collect::<Vec<_>>();
 
         let fft = fft(&wave, wavspec.sample_rate as usize);
-        let pos = fft
-            .iter()
-            .position(|x| x.0 > SHOWN_FREQ_MAX as f64)
-            .unwrap();
 
         let mut freq_guideline = enum_iterator::first::<Tone>();
         let mut prev_vol = fft[0].1;
@@ -271,7 +263,7 @@ fn main() {
             }
         }
 
-        for (i, &(freq, mut volume)) in fft.iter().enumerate().skip(1) {
+        for (i, &(freq, volume)) in fft.iter().enumerate().skip(1) {
             while let Some(fg) = freq_guideline && freq > fg.freq() {
                 freq_guideline = enum_iterator::next(&fg);
                 chistory.push((i * PIXELS_PER_FREQ, volume));
@@ -501,97 +493,3 @@ impl Tone {
         }
     }
 }
-
-/*
-27.500       A0
-29.135      As0
-30.868       B0
-32.703       C1
-34.648      Cs1
-36.708       D1
-38.891      Ds1
-41.203       E1
- 43.654      F1
- 46.249     Fs1
- 48.999       G1
- 51.913     Gs1
- 55.000     A1
- 58.270     As1
- 61.735    B1
- 65.406     C2
- 69.296     Cs2
- 73.416     D2
- 77.782     Ds2
- 82.407     E2
- 87.307     F2
- 92.499     Fs2
- 97.999     G2
- 103.82    Gs2
- 110.00     A2
- 116.54     As2
- 123.47     B2
- 130.81     C3
- 138.59     Cs3
- 146.83     D3
- 155.56     Ds3
- 164.81     E3
- 174.61     F3
- 184.99     Fs3
- 195.99     G3
- 207.65     Gs3
- 220.00     A3
- 233.08     As3
- 246.94     B3
- 261.62     C4
- 277.18     Cs4
- 293.66     D4
- 311.12     Ds4
- 329.62     E4
- 349.22     F4
- 369.99     Fs4
- 391.99     G4
- 415.30     Gs4
- 440.00     A4
- 466.16     As4
- 493.88     B4
- 523.25     C5
- 554.36     Cs5
- 587.33     D5
- 622.25     Ds5
- 659.25     E5
- 698.45     F5
- 739.98     Fs5
- 783.99     G5
- 830.60     Gs5
- 880.00     A5
- 932.32     As5
- 987.76     B5
- 1046.502   C6
- 1108.731   Cs6
- 1174.659   D6
- 1244.508   Ds6
- 1318.510   E6
- 1396.913   F6
- 1479.978   Fs6
- 1567.982   G6
- 1661.219   Gs6
- 1760.000   A6
- 1864.655   As6
- 1975.533   B6
- 2093.005   C7
- 2217.461   Cs7
- 2349.318   D7
- 2489.016   Ds7
- 2637.020   E7
- 2793.826   F7
- 2959.955   Fs7
- 3135.963   G7
- 3322.438   Gs7
- 3520.000   A7
- 3729.310   As7
- 3951.066   B7
- 4186.009   C8
-
-
-
- */
