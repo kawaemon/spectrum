@@ -264,14 +264,11 @@ fn render(
                 }
                 let rel_volume =
                     ((f64::clamp(v, SHOWN_VOLUME_MIN as f64, SHOWN_VOLUME_MAX as f64))
-                        + SHOWN_VOLUME_MIN.abs() as f64)
+                        - SHOWN_VOLUME_MIN as f64)
                         / SHOWN_VOLUME_RANGE as f64;
-                let c: Rgb<u8, LinearRgb> = Hsv::<u8, LinearRgb>::new(
-                    Deg(232),
-                    ((1.0 - rel_volume * 1.5) * 255.0).min(254.0) as u8,
-                    255,
-                )
-                .to_rgb();
+                let c: Rgb<u8, LinearRgb> =
+                    Hsv::<u8, LinearRgb>::new(Deg(255 - (232.0 * rel_volume) as u8), 127, 255)
+                        .to_rgb();
                 canvas.set_draw_color(Color::RGB(c.r, c.g, c.b));
                 canvas
                     .draw_line(
