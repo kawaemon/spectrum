@@ -59,33 +59,26 @@ impl Key {
     /// Finds absolute X position of the key as below:
     ///
     /// ```text
-    ///    0       2   3       5   6   7
+    ///    1       4   6       9   11  13
     ///   [A#]    [C#][D#]    [F#][G#][A#]
     /// [A ][B ][C ][D ][E ][F ][G ][A ]  ...
-    ///  0   1   2   3   4   5   6   7
+    ///  0   2   3   5   7   8   10  12
     /// ```
     pub fn position(&self) -> u32 {
-        if self.tone.is_white() {
-            (match self.tone {
-                Tone::A => 0,
-                Tone::B => 1,
-                Tone::C => 2,
-                Tone::D => 3,
-                Tone::E => 4,
-                Tone::F => 5,
-                Tone::G => 6,
-                _ => unreachable!(),
-            }) + self.octave as u32 * 7
-        } else {
-            (match self.tone {
-                Tone::As => 0,
-                Tone::Cs => 2,
-                Tone::Ds => 3,
-                Tone::Fs => 5,
-                Tone::Gs => 6,
-                _ => unreachable!(),
-            }) + self.octave as u32 * 7
-        }
+        (match self.tone {
+            Tone::A => 0,
+            Tone::As => 1,
+            Tone::B => 2,
+            Tone::C => 3,
+            Tone::Cs => 4,
+            Tone::D => 5,
+            Tone::Ds => 6,
+            Tone::E => 7,
+            Tone::F => 8,
+            Tone::Fs => 9,
+            Tone::G => 10,
+            Tone::Gs => 11,
+        }) + self.octave as u32 * 12
     }
 }
 

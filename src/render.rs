@@ -7,7 +7,7 @@ use crate::{fft::fft, tone::Key, HEIGHT, WIDTH};
 
 const PIXELS_PER_FREQ: usize = 2;
 const SCROLL_SPEED: usize = 10;
-const KEY_WIDTH: u32 = 20;
+const KEY_WIDTH: u32 = 12;
 const KEY_HEIGHT: u32 = 100;
 
 pub struct Renderer {
@@ -70,27 +70,18 @@ impl Renderer {
         let fft = fft(&wave, sample_rate as usize);
 
         if props.show_time_chart {
-            canvas.set_draw_color(Color::WHITE);
-            for key in enum_iterator::all::<Key>().filter(|key| key.tone().is_white()) {
-                let x = key.position();
+            for key in enum_iterator::all::<Key>() {
+                if key.tone().is_white() {
+                    canvas.set_draw_color(Color::WHITE);
+                } else {
+                    canvas.set_draw_color(Color::BLACK);
+                }
                 canvas
                     .fill_rect(Rect::new(
-                        x as i32 * KEY_WIDTH as i32,
+                        key.position() as i32 * KEY_WIDTH as i32,
                         HEIGHT as i32 - KEY_HEIGHT as i32,
                         KEY_WIDTH - 1,
                         KEY_HEIGHT,
-                    ))
-                    .unwrap();
-            }
-            canvas.set_draw_color(Color::BLACK);
-            for key in enum_iterator::all::<Key>().filter(|key| key.tone().is_black()) {
-                let x = key.position();
-                canvas
-                    .fill_rect(Rect::new(
-                        x as i32 * KEY_WIDTH as i32 + KEY_WIDTH as i32 * 3 / 4,
-                        HEIGHT as i32 - KEY_HEIGHT as i32,
-                        KEY_WIDTH / 2,
-                        KEY_HEIGHT / 2,
                     ))
                     .unwrap();
             }
