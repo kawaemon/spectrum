@@ -1,7 +1,10 @@
 use enum_iterator::Sequence;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Sequence)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Sequence)]
 pub enum Tone {
+    A,
+    As,
+    B,
     C,
     Cs,
     D,
@@ -11,24 +14,28 @@ pub enum Tone {
     Fs,
     G,
     Gs,
-    A,
-    As,
-    B,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+impl Tone {
+    pub fn is_white(self) -> bool {
+        use Tone::*;
+        matches!(self, A | B | C | D | E | F | G)
+    }
+
+    pub fn is_black(self) -> bool {
+        use Tone::*;
+        matches!(self, As | Cs | Ds | Fs | Gs)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Key {
     tone: Tone,
     octave: u8,
 }
 
 impl Key {
-    pub fn new(tone: Tone, octave: u8) -> Self {
-        assert!(octave < 64, "octave must be less than 64");
-        Self { tone, octave }
-    }
-
-    pub const fn freq(&self) -> f64 {
+    pub fn freq(&self) -> f64 {
         (match self.tone {
             Tone::A => 27.500,
             Tone::As => 29.135,
@@ -43,6 +50,42 @@ impl Key {
             Tone::G => 48.999,
             Tone::Gs => 51.913,
         }) * (1u64 << self.octave) as f64
+    }
+
+    pub fn tone(&self) -> Tone {
+        self.tone
+    }
+
+    /// Finds absolute X position of the key as below:
+    ///
+    /// ```text
+    ///    0       2   3       5   6   7
+    ///   [A#]    [C#][D#]    [F#][G#][A#]
+    /// [A ][B ][C ][D ][E ][F ][G ][A ]  ...
+    ///  0   1   2   3   4   5   6   7
+    /// ```
+    pub fn position(&self) -> u32 {
+        if self.tone.is_white() {
+            (match self.tone {
+                Tone::A => 0,
+                Tone::B => 1,
+                Tone::C => 2,
+                Tone::D => 3,
+                Tone::E => 4,
+                Tone::F => 5,
+                Tone::G => 6,
+                _ => unreachable!(),
+            }) + self.octave as u32 * 7
+        } else {
+            (match self.tone {
+                Tone::As => 0,
+                Tone::Cs => 2,
+                Tone::Ds => 3,
+                Tone::Fs => 5,
+                Tone::Gs => 6,
+                _ => unreachable!(),
+            }) + self.octave as u32 * 7
+        }
     }
 }
 

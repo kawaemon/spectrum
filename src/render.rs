@@ -1,12 +1,14 @@
 use std::{collections::VecDeque, time::Instant};
 
 use color::{color_space::LinearRgb, Deg, Hsv, Rgb, ToRgb};
-use sdl2::pixels::Color;
+use sdl2::{pixels::Color, rect::Rect};
 
-use crate::{fft::fft, tone::Tone, HEIGHT, WIDTH};
+use crate::{fft::fft, tone::Key, HEIGHT, WIDTH};
 
 const PIXELS_PER_FREQ: usize = 2;
 const SCROLL_SPEED: usize = 10;
+const KEY_WIDTH: u32 = 20;
+const KEY_HEIGHT: u32 = 100;
 
 pub struct Renderer {
     history: VecDeque<Vec<(usize, f64)>>,
@@ -64,6 +66,30 @@ impl Renderer {
         let fft = fft(&wave, sample_rate as usize);
 
         if props.show_time_chart {
+            canvas.set_draw_color(Color::WHITE);
+            for key in enum_iterator::all::<Key>().filter(|key| key.tone().is_white()) {
+                let x = key.position();
+                canvas
+                    .fill_rect(Rect::new(
+                        x as i32 * KEY_WIDTH as i32,
+                        HEIGHT as i32 - KEY_HEIGHT as i32,
+                        KEY_WIDTH - 1,
+                        KEY_HEIGHT,
+                    ))
+                    .unwrap();
+            }
+            canvas.set_draw_color(Color::BLACK);
+            for key in enum_iterator::all::<Key>().filter(|key| key.tone().is_black()) {
+                let x = key.position();
+                canvas
+                    .fill_rect(Rect::new(
+                        x as i32 * KEY_WIDTH as i32 + KEY_WIDTH as i32 * 3 / 4,
+                        HEIGHT as i32 - KEY_HEIGHT as i32,
+                        KEY_WIDTH / 2,
+                        KEY_HEIGHT / 2,
+                    ))
+                    .unwrap();
+            }
             for (y, h) in self.history.iter().enumerate().skip(1).rev() {
                 for &(x, v) in h.iter() {
                     if v < 3.0 {
@@ -88,7 +114,7 @@ impl Renderer {
         }
 
         let mut current_history = vec![];
-        let mut freq_guideline = enum_iterator::first::<Tone>();
+        let mut freq_guideline = enum_iterator::first::<Key>();
         for (i, window) in fft.windows(2).enumerate().skip(1) {
             let (freq, volume) = window[0];
             while freq_guideline.map_or(false, |fg| fg.freq() < freq) {
