@@ -21,11 +21,6 @@ impl Tone {
         use Tone::*;
         matches!(self, A | B | C | D | E | F | G)
     }
-
-    pub fn is_black(self) -> bool {
-        use Tone::*;
-        matches!(self, As | Cs | Ds | Fs | Gs)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
