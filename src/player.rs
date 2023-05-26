@@ -17,6 +17,7 @@ impl AudioCallback for Player {
         } else {
             &[]
         };
+        x.fill(0.0);
         for (x, &sample) in x.iter_mut().zip(wave) {
             *x = sample as f32 * VOLUME;
         }
