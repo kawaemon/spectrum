@@ -12,9 +12,13 @@ impl AudioCallback for Player {
     type Channel = f32;
     fn callback(&mut self, x: &mut [f32]) {
         assert_eq!(x.len(), 4096);
-        let wave = &self.data[self.pos..self.pos + x.len()];
-        for (i, x) in x.iter_mut().enumerate() {
-            *x = wave[i] as f32 * VOLUME;
+        let wave = if self.pos < self.data.len() {
+            &self.data[self.pos..self.data.len().min(self.pos + x.len())]
+        } else {
+            &[]
+        };
+        for (x, &sample) in x.iter_mut().zip(wave) {
+            *x = sample as f32 * VOLUME;
         }
         self.pos += x.len();
     }

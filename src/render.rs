@@ -54,8 +54,12 @@ impl Renderer {
 
         const SAMPLING_WINDOW_SEC: f64 = 10.0 / 60.0;
         let half_window = SAMPLING_WINDOW_SEC / 2.0;
-        let wave = &samples[(bps * (rel_now - half_window).max(0.0)) as usize
-            ..(bps * (rel_now + half_window)) as usize];
+        let wave_start = (bps * (rel_now - half_window).max(0.0)) as usize;
+        let wave = if wave_start < samples.len() {
+            &samples[wave_start..samples.len().min((bps * (rel_now + half_window)) as usize)]
+        } else {
+            &[]
+        };
         let wave_len = wave.len();
         let wave = wave
             .iter()
