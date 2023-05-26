@@ -104,10 +104,11 @@ impl Renderer {
                         Hsv::<u8, LinearRgb>::new(Deg(255 - (232.0 * rel_volume) as u8), 127, 255)
                             .to_rgb();
                     canvas.set_draw_color(Color::RGB(c.r, c.g, c.b));
+                    let line_x = (x * PIXELS_PER_FREQ) as i32;
                     canvas
                         .draw_line(
-                            (x as i32, ((y - 1) * SCROLL_SPEED) as i32),
-                            (x as i32, (y * SCROLL_SPEED) as i32),
+                            (line_x, ((y - 1) * SCROLL_SPEED) as i32),
+                            (line_x, (y * SCROLL_SPEED) as i32),
                         )
                         .unwrap();
                 }
@@ -123,7 +124,7 @@ impl Renderer {
             let (freq, volume) = window[0];
             while freq_guideline.map_or(false, |fg| fg.freq() < freq) {
                 freq_guideline = enum_iterator::next(&freq_guideline.unwrap());
-                current_history.push((i * PIXELS_PER_FREQ, volume));
+                current_history.push((i, volume));
             }
 
             if props.show_spectrum {
