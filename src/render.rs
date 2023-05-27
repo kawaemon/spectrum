@@ -5,13 +5,15 @@ use sdl2::{pixels::Color, rect::Rect};
 
 use crate::{fft::fft, tone::Key, HEIGHT, WIDTH};
 
-const PIXELS_PER_FREQ: usize = 2;
+const PIXELS_PER_FREQ: f64 = 25.0;
 const SCROLL_SPEED: usize = 10;
-const KEY_WIDTH: u32 = 12;
+const VIEW_SHIFT: f64 = 1000.0;
+const KEY_SHIFT: u32 = 150;
+const KEY_WIDTH: f64 = 13.0;
 const KEY_HEIGHT: u32 = 100;
 
 pub struct Renderer {
-    history: VecDeque<Vec<(usize, f64)>>,
+    history: VecDeque<Vec<(f64, f64)>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -33,7 +35,7 @@ impl Renderer {
     pub fn new() -> Self {
         Self {
             history: (0..(HEIGHT as usize / SCROLL_SPEED))
-                .map(|_| Vec::<(usize, f64)>::new())
+                .map(|_| vec![])
                 .collect::<VecDeque<_>>(),
         }
     }
@@ -78,9 +80,9 @@ impl Renderer {
                 }
                 canvas
                     .fill_rect(Rect::new(
-                        key.position() as i32 * KEY_WIDTH as i32,
+                        key.position() as i32 * KEY_WIDTH as i32 - KEY_SHIFT as i32,
                         HEIGHT as i32 - KEY_HEIGHT as i32,
-                        KEY_WIDTH - 1,
+                        KEY_WIDTH.floor() as u32 - 1,
                         KEY_HEIGHT,
                     ))
                     .unwrap();
@@ -95,7 +97,7 @@ impl Renderer {
                         Hsv::<u8, LinearRgb>::new(Deg(255 - (232.0 * rel_volume) as u8), 127, 255)
                             .to_rgb();
                     canvas.set_draw_color(Color::RGB(c.r, c.g, c.b));
-                    let line_x = (x * PIXELS_PER_FREQ) as i32;
+                    let line_x = (20.0 * x.log10() * PIXELS_PER_FREQ - VIEW_SHIFT) as i32;
                     canvas
                         .draw_line(
                             (line_x, ((y - 1) * SCROLL_SPEED) as i32),
@@ -111,13 +113,15 @@ impl Renderer {
 
         let mut current_history = vec![];
         let mut freq_guideline = enum_iterator::first::<Key>();
-        for (i, window) in fft.windows(2).enumerate().skip(1) {
+        for window in fft.windows(2).skip(1) {
             let (freq, volume) = window[0];
             while freq_guideline.map_or(false, |fg| fg.freq() < freq) {
+                current_history.push((freq_guideline.unwrap().freq(), volume));
                 freq_guideline = enum_iterator::next(&freq_guideline.unwrap());
-                current_history.push((i, volume));
             }
 
+            let x1 = 20.0 * freq.log10() * PIXELS_PER_FREQ - VIEW_SHIFT;
+            let x2 = 20.0 * window[1].0.log10() * PIXELS_PER_FREQ - VIEW_SHIFT;
             if props.show_spectrum {
                 fn envelope_y(volume: f64) -> f64 {
                     let pos = normalize_volume(volume);
@@ -126,19 +130,13 @@ impl Renderer {
                 canvas.set_draw_color(Color::WHITE);
                 canvas
                     .draw_line(
-                        (
-                            ((i - 1) * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - envelope_y(volume) as i32,
-                        ),
-                        (
-                            (i * PIXELS_PER_FREQ) as i32,
-                            HEIGHT as i32 - envelope_y(window[1].1) as i32,
-                        ),
+                        (x1 as i32, HEIGHT as i32 - envelope_y(volume) as i32),
+                        (x2 as i32, HEIGHT as i32 - envelope_y(window[1].1) as i32),
                     )
                     .unwrap();
             }
 
-            if i * PIXELS_PER_FREQ > WIDTH as usize {
+            if x1 > WIDTH as f64 {
                 break;
             }
         }
